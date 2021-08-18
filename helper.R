@@ -33,29 +33,39 @@ permissions_rename <- list(schema="Schema", name="Name", type="Type", access="Ac
 permissions <- permissions_r %>% collect() %>%
   rename(!!!permissions_rename)
 
+translate_permissions <- function(input) {
+  case_when(
+      input == "r" ~ "SELECT",
+      input == "a" ~ "INSERT",
+      input == "w" ~ "UPDATE",
+      input == "d" ~ "DELETE",
+      input == "D" ~ "TRUNCATE",
+      input == "x" ~ "REFERENCES",
+      input == "t" ~ "TRIGGER",
+      input == "C" ~ "CREATE",
+      input == "c" ~ "CONNECT",
+      input == "T" ~ "TEMPORARY",
+      input == "X" ~ "EXECUTE",
+      input == "U" ~ "USAGE",
+      TRUE ~ "UNKNOWN"
+  )
+}
+
+split_permissions <- function(df, column) {
+  column_q <- rlang::enquo(column)
+  df %>%
+    separate_rows(!!column_q, sep = "\n") %>%
+    separate(!!column_q, sep = "=", into = c("role", "permission_raw"), remove = FALSE) %>%
+    separate(permission_raw, sep = "/", into = c("permission_raw", "owner"), remove = TRUE) %>%
+    separate_rows(permission_raw, sep = "") %>%
+    filter(permission_raw != "")
+}
+
 permissions_tall <- permissions %>%
   select(-column, - policies) %>%
-  separate_rows(access, sep = "\n") %>%
-  separate(access, sep = "=", into = c("role", "permission_raw"), remove = FALSE) %>%
-  separate(permission_raw, sep = "/", into = c("permission_raw", "owner"), remove = TRUE) %>%
-  separate_rows(permission_raw, sep = "") %>%
-  filter(permission_raw != "") %>%
+  split_permissions(access) %>%
   mutate(
-    permission = case_when(
-      permission_raw == "r" ~ "SELECT",
-      permission_raw == "a" ~ "INSERT",
-      permission_raw == "w" ~ "UPDATE",
-      permission_raw == "d" ~ "DELETE",
-      permission_raw == "D" ~ "TRUNCATE",
-      permission_raw == "x" ~ "REFERENCES",
-      permission_raw == "t" ~ "TRIGGER",
-      permission_raw == "C" ~ "CREATE",
-      permission_raw == "c" ~ "CONNECT",
-      permission_raw == "T" ~ "TEMPORARY",
-      permission_raw == "X" ~ "EXECUTE",
-      permission_raw == "U" ~ "USAGE",
-      TRUE ~ "UNKNOWN"
-    )
+    permission = translate_permissions(permission_raw)
   )
 
 permissions_agg <- permissions_tall %>%
@@ -70,3 +80,8 @@ permissions_profiles <- permissions_agg %>%
 # sanity checks
 stopifnot(roles_tall$rolname %in% roles$rolname) # have not dropped roles
 
+
+# example queries
+permissions_profiles %>% filter(role == "appuser_crud") %>% View()
+permissions_profiles %>% filter(role == "appuser_select") %>% View()
+permissions_profiles %>% filter(!role %in% c("appuser_crud","appuser_select")) %>% View()
