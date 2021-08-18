@@ -31,6 +31,11 @@ roles_tall <- bind_rows(
 
 proc <- proc_r %>% collect()
 
+proc_tall <- proc %>%
+  split_permissions(`Access privileges`) %>%
+  mutate(permission = translate_permissions(permission_raw)) %>%
+  select(Schema, Name, role, permission, permission_raw)
+
 schemas <- schemas_r %>% collect()
 
 schemas_tall <- schemas %>%
