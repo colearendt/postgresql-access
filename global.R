@@ -18,6 +18,7 @@ users_r <- tbl(con, user_query)
 roles_r <-tbl(con,role_query)
 schemas_r <- tbl(con, schema_query)
 permissions_r <-tbl(con, permission_query)
+proc_r <- tbl(con, proc_query)
 
 
 # collect the data locally
@@ -27,6 +28,8 @@ roles_tall <- bind_rows(
   roles_r %>% filter(is.na(sql(array_length(memberof,1L)))) %>% collect(),
   roles_r %>% filter(!is.na(sql(array_length(memberof,1L)))) %>% mutate(member_roles=sql(unnest(memberof))) %>% collect()
 )
+
+proc <- proc_r %>% collect()
 
 schemas <- schemas_r %>% collect()
 
@@ -53,6 +56,8 @@ permissions_agg <- permissions_tall %>%
 permissions_profiles <- permissions_agg %>%
   group_by(schema, type, role, owner, permission) %>%
   summarize(names = list(name))
+
+
 
 # sanity checks
 stopifnot(roles_tall$rolname %in% roles$rolname) # have not dropped roles
