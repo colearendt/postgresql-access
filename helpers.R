@@ -13,6 +13,7 @@ translate_permissions <- function(input) {
       input == "T" ~ "TEMPORARY",
       input == "X" ~ "EXECUTE",
       input == "U" ~ "USAGE",
+      is.na(input) ~ NA_character_,
       TRUE ~ "UNKNOWN"
   )
 }
