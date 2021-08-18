@@ -13,26 +13,6 @@ dplyr::tbl(con, in_schema("information_schema", "user_mappings"))
 
 source("queries.R")
 
-users_r <- tbl(con, user_query)
-roles_r <-tbl(con,role_query)
-schemas_r <- tbl(con, schema_query)
-permissions_r <-tbl(con, permission_query)
-
-
-# collect the data locally
-users <- users_r %>% collect()
-roles <- roles_r %>% collect()
-roles_tall <- bind_rows(
-  roles_r %>% filter(is.na(sql(array_length(memberof,1L)))) %>% collect(),
-  roles_r %>% filter(!is.na(sql(array_length(memberof,1L)))) %>% mutate(member_roles=sql(unnest(memberof))) %>% collect()
-)
-
-schemas <- schemas_r %>% collect()
-
-permissions_rename <- list(schema="Schema", name="Name", type="Type", access="Access privileges", column="Column privileges", policies = "Policies")
-permissions <- permissions_r %>% collect() %>%
-  rename(!!!permissions_rename)
-
 translate_permissions <- function(input) {
   case_when(
       input == "r" ~ "SELECT",
@@ -58,8 +38,32 @@ split_permissions <- function(df, column) {
     separate(!!column_q, sep = "=", into = c("role", "permission_raw"), remove = FALSE) %>%
     separate(permission_raw, sep = "/", into = c("permission_raw", "owner"), remove = TRUE) %>%
     separate_rows(permission_raw, sep = "") %>%
-    filter(permission_raw != "")
+    filter(permission_raw != "" | is.na(permission_raw))
 }
+
+users_r <- tbl(con, user_query)
+roles_r <-tbl(con,role_query)
+schemas_r <- tbl(con, schema_query)
+permissions_r <-tbl(con, permission_query)
+
+
+# collect the data locally
+users <- users_r %>% collect()
+roles <- roles_r %>% collect()
+roles_tall <- bind_rows(
+  roles_r %>% filter(is.na(sql(array_length(memberof,1L)))) %>% collect(),
+  roles_r %>% filter(!is.na(sql(array_length(memberof,1L)))) %>% mutate(member_roles=sql(unnest(memberof))) %>% collect()
+)
+
+schemas <- schemas_r %>% collect()
+
+schemas_tall <- schemas %>%
+  split_permissions(`Access privileges`) %>%
+  mutate(permission = translate_permissions(permission_raw))
+
+permissions_rename <- list(schema="Schema", name="Name", type="Type", access="Access privileges", column="Column privileges", policies = "Policies")
+permissions <- permissions_r %>% collect() %>%
+  rename(!!!permissions_rename)
 
 permissions_tall <- permissions %>%
   select(-column, - policies) %>%
