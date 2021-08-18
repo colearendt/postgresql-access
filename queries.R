@@ -26,8 +26,16 @@ user_query <-  dbplyr::sql("SELECT usename AS role_name,
 FROM pg_catalog.pg_user
 ORDER BY role_name desc")
 
-schema_query <- dbplyr::sql("SELECT n.nspname AS \"Name\",
+schema_query_simple <- dbplyr::sql("SELECT n.nspname AS \"Name\",
   pg_catalog.pg_get_userbyid(n.nspowner) AS \"Owner\"
+FROM pg_catalog.pg_namespace n
+WHERE n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
+ORDER BY 1")
+
+schema_query <- dbplyr::sql("SELECT n.nspname AS \"Name\",
+  pg_catalog.pg_get_userbyid(n.nspowner) AS \"Owner\",
+  pg_catalog.array_to_string(n.nspacl, E'\n') AS \"Access privileges\",
+  pg_catalog.obj_description(n.oid, 'pg_namespace') AS \"Description\"
 FROM pg_catalog.pg_namespace n
 WHERE n.nspname !~ '^pg_' AND n.nspname <> 'information_schema'
 ORDER BY 1")
